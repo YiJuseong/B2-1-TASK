@@ -1,0 +1,7 @@
+id,type,date,amount,category,memo,tags
+tx000001,income,2026-05-01,3000000,salary,5월 정기 급여,회사
+tx000002,expense,2026-05-02,15000,food,점심 김치찌개,식비,외식
+tx000003,expense,2026-05-05,50000,transport,택시 및 주유비,교통
+tx000004,expense,2026-05-10,200000,rent,5월 자취방 월세,고정지출
+tx000005,income,2026-05-15,50000,etc,당근마켓 중고판매,용돈
+tx000006,expense,2026-05-20,12000,food,퇴근길 카페 커피,식비
