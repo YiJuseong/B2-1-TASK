@@ -7,10 +7,10 @@
 
 ```bash
 # 기본 실행 및 도움말 확인
-python -m budget_app --help
+python3 -m budget_app --help
 
 # 하위 명령어 상세 도움말 확인 예시
-python -m budget_app search --help
+python3 -m budget_app search --help
 ```
 ## 📂 2. 저장 파일 위치 및 형식
 모든 데이터는 별도의 데이터베이스 없이 ./data/ 디렉터리 내에 JSONL(JSON Lines) 텍스트 포맷으로 영구 분리 저장됩니다.
@@ -27,34 +27,34 @@ python -m budget_app search --help
 ## ⌨️ 3. 주요 명령 사용 예시
 거래 추가 (대화형)
 ```bash
-python -m budget_app add
+python3 -m budget_app add
 ```
 거래 목록 조회 (최신순 5개 제한)
 ```bash
-python -m budget_app list --limit 5
+python3 -m budget_app list --limit 5
 ```
 거래 조건 검색
 ```bash
-python -m budget_app search --type expense --category food --q "마라탕"
+python3 -m budget_app search --type expense --category food --q "마라탕"
 ```
 월 요약 및 예산 연동
 ```bash
 # 예산 먼저 설정
-python -m budget_app budget set --month 2026-05 --amount 500000
+python3 -m budget_app budget set --month 2026-05 --amount 500000
 
 # 월 요약 출력 (예산 대비 사용량 자동 표기)
-python -m budget_app summary --month 2026-05 --top 5
+python3 -m budget_app summary --month 2026-05 --top 5
 ```
 카테고리 관리
 ```bash
-python -m budget_app category list
-python -m budget_app category add shopping
-python -m budget_app category remove food
+python3 -m budget_app category list
+python3 -m budget_app category add shopping
+python3 -m budget_app category remove food
 ```
 수정 및 삭제
 ```bash
-python -m budget_app update --id a1b2c3d4
-python -m budget_app delete --id a1b2c3d4
+python3 -m budget_app update --id a1b2c3d4
+python3 -m budget_app delete --id a1b2c3d4
 ```
 
 ## 📋 4. Import / Export CSV 스키마
@@ -62,8 +62,8 @@ python -m budget_app delete --id a1b2c3d4
 ![alt text](image.png)
 ```bash
 # CSV 데이터 가져오기
-python -m budget_app import --from ./my_data.csv
+python3 -m budget_app import --from ./my_data.csv
 
 # 특정 월 데이터 CSV 파일로 백업 내보내기
-python -m budget_app export --out ./backup_05.csv --month 2026-05
+python3 -m budget_app export --out ./backup_05.csv --month 2026-05
 ```
