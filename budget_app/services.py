@@ -1,10 +1,12 @@
 import csv
 import os
 import uuid
+import sys
 from datetime import datetime
 from typing import List, Optional
 from budget_app.models import Transaction
 from budget_app.repositories import DataRepository
+
 
 class BudgetService:
     def __init__(self, repo: DataRepository):
@@ -19,53 +21,70 @@ class BudgetService:
 
     def interactive_add(self):
         print("\n=== 새 거래 추가 ===")
-        
-        # 1. 날짜 입력
-        while True:
-            date = input("날짜 입력 (YYYY-MM-DD) [엔터시 오늘]: ").strip()
-            if not date:
-                date = datetime.today().strftime("%Y-%m-%d")
-                break
-            if self._validate_date(date): break
-            print("[오류] 올바른 날짜 형식이 아닙니다.")
+    
+        try:
+            # 1. 날짜 입력
+            while True:
+                date = input("날짜 입력 (YYYY-MM-DD) [엔터시 오늘]: ").strip()
+                if not date:
+                    date = datetime.today().strftime("%Y-%m-%d")
+                    break
+                if self._validate_date(date): 
+                    break
+                print("[오류] 올바른 날짜 형식이 아닙니다.")
 
         # 2. 타입 입력
-        while True:
-            tx_type = input("타입 입력 (income/expense): ").strip().lower()
-            if tx_type in ['income', 'expense']: break
-            print("[오류] income 또는 expense만 입력 가능합니다.")
+            while True:
+                tx_type = input("타입 입력 (income/expense): ").strip().lower()
+                if tx_type in ['income', 'expense']: 
+                    break
+                print("[오류] income 또는 expense만 입력 가능합니다.")
 
         # 3. 카테고리 입력
-        categories = self.repo.load_categories()
-        while True:
-            print(f"사용 가능한 카테고리: {', '.join(categories)}")
-            category = input("카테고리명: ").strip()
-            if category in categories: break
-            print(f"[오류] 존재하지 않는 카테고리입니다.")
-            yn = input("해당 카테고리를 새로 등록할까요? (y/n): ").strip().lower()
-            if yn == 'y':
-                categories.append(category)
-                self.repo.save_categories(categories)
-                break
+            categories = self.repo.load_categories()
+            while True:
+                print(f"사용 가능한 카테고리: {', '.join(categories)}")
+                category = input("카테고리명: ").strip()
+                if category in categories: 
+                    break
+                print(f"[오류] 존재하지 않는 카테고리입니다.")
+            
+                yn = input("해당 카테고리를 새로 등록할까요? (y/n): ").strip().lower()
+                if yn == 'y':
+                    categories.append(category)
+                    self.repo.save_categories(categories)
+                    break
 
         # 4. 금액 입력
-        while True:
-            try:
-                amount = int(input("금액 (양수 정수): ").strip())
-                if amount > 0: break
-                print("[오류] 금액은 0보다 커야 합니다.")
-            except ValueError:
-                print("[오류] 숫자만 입력 가능합니다.")
+            while True:
+                try:
+                    amount = int(input("금액 (양수 정수): ").strip())
+                    if amount > 0: 
+                        break
+                    print("[오류] 금액은 0보다 커야 합니다.")
+                except ValueError:
+                    print("[오류] 숫자만 입력 가능합니다.")
 
         # 5. 메모 및 태그
-        memo = input("메모 (선택, 생성시 엔터): ").strip()
-        tags_raw = input("태그 (쉼표 분리, 선택): ").strip()
-        tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+            memo = input("메모 (선택, 생성시 엔터): ").strip()
+            tags_raw = input("태그 (쉼표 분리, 선택): ").strip()
+            tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
 
-        tx_id = str(uuid.uuid4())[:8] # 식별하기 편하게 8자리 단축 UUID 사용
-        new_tx = Transaction(id=tx_id, type=tx_type, date=date, amount=amount, category=category, memo=memo, tags=tags)
-        self.repo.add_transaction(new_tx)
-        print(f"🎉 성공적으로 저장되었습니다! 생성된 거래 ID: {tx_id}")
+        # 6. 객체 생성 및 저장
+            tx_id = str(uuid.uuid4())[:8]
+            new_tx = Transaction(id=tx_id, type=tx_type, date=date, amount=amount, category=category, memo=memo, tags=tags)
+            self.repo.add_transaction(new_tx)
+            print(f"🎉 성공적으로 저장되었습니다! 생성된 거래 ID: {tx_id}")
+
+    # 🚨 [Ctrl + C] 방어벽
+        except KeyboardInterrupt:
+            print("\n\n👋 [입력 취소] 사용자가 입력을 중단했습니다. 메인 화면으로 돌아갑니다.")
+            sys.exit(1) # 의도치 않은 중단이므로 종료 코드 1 또는 안전하게 0으로 설정 가능합니다.
+
+    # 🚨 [Ctrl + D] 방어벽
+        except EOFError:
+            print("\n\n👋 [입력 종료] EOF 신호가 감지되어 프로그램을 안전하게 종료합니다.")
+            sys.exit(0) # 사용자가 입력을 끝내겠다는 명확한 신호(EOF)이므로 정상 종료인 0을 반환합니다.
 
     def list_transactions(self, limit: int):
         all_tx = list(self.repo.stream_transactions())
