@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 from budget_app.models import Transaction
 from budget_app.repositories import DataRepository
+from dataclasses import dataclass, asdict, field
 
 
 class BudgetService:
@@ -234,52 +235,121 @@ class BudgetService:
         self.repo.rewrite_transactions(all_tx)
         print("✏️ 거래 정보가 성공적으로 수정되었습니다!")
 
-    def export_csv(self, out_path: str, month: Optional[str], start_date: Optional[str], end_date: Optional[str]):
-        tx_stream = self.repo.stream_transactions()
-        if month:
-            tx_stream = (tx for tx in tx_stream if tx.date.startswith(month))
-        if start_date:
-            tx_stream = (tx for tx in tx_stream if tx.date >= start_date)
-        if end_date:
-            tx_stream = (tx for tx in tx_stream if tx.date <= end_date)
+    def export_csv(self, out_path: str, month: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None):
+        try:
+            tx_stream = self.repo.stream_transactions()
+            if month:
+                tx_stream = (tx for tx in tx_stream if tx.date.startswith(month))
+            if start_date:
+                tx_stream = (tx for tx in tx_stream if tx.date >= start_date)
+            if end_date:
+                tx_stream = (tx for tx in tx_stream if tx.date <= end_date)
 
-        count = 0
-        with open(out_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['id', 'type', 'date', 'amount', 'category', 'memo', 'tags'])
-            for tx in tx_stream:
-                writer.writerow([tx.id, tx.type, tx.date, tx.amount, tx.category, tx.memo, ",".join(tx.tags)])
-                count += 1
-        print(f"💾 내보내기 완료: 총 {count}건의 데이터가 '{out_path}' 파일로 저장되었습니다.")
+            count = 0
+            # 출력할 디렉토리가 없으면 자동으로 생성
+            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+
+            with open(out_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                # 헤더 작성
+                writer.writerow(['id', 'type', 'date', 'amount', 'category', 'memo', 'tags'])
+                for tx in tx_stream:
+                    writer.writerow([tx.id, tx.type, tx.date, tx.amount, tx.category, tx.memo, ",".join(tx.tags)])
+                    count += 1
+            print(f"💾 내보내기 완료: 총 {count}건의 데이터가 '{out_path}' 파일로 저장되었습니다.")
+        
+        except IOError as e:
+            print(f"❌ [파일 오류] 내보내기 중 파일 쓰기 실패: {e}")
+        except Exception as e:
+            print(f"❌ [예기치 못한 오류] 내보내기 실패: {e}")
 
     def import_csv(self, from_path: str):
         if not os.path.exists(from_path):
-            print(f"[오류] 파일이 존재하지 않습니다: {from_path}")
+            print(f"❌ [오류] 파일이 존재하지 않습니다: {from_path}")
             return
 
-        categories = self.repo.load_categories()
-        count = 0
+        # 롤백을 위해 기존 카테고리 상태를 복사해 둡니다.
+        original_categories = self.repo.load_categories()
+        temp_categories = list(original_categories)  # 임시 작업용 카테고리 리스트
         
-        with open(from_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # 간단 가이드 유효성 체크
-                if row['type'] not in ['income', 'expense']: continue
-                if row['category'] not in categories:
-                    categories.append(row['category'])
+        # 파싱에 성공한 Transaction 객체들을 임시로 담아둘 리스트
+        temp_transactions = []
+        
+        required_headers = {'type', 'date', 'amount', 'category'}
+
+        try:
+            # Excel 호환성을 위해 utf-8-sig 사용
+            with open(from_path, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
                 
-                tags = [t.strip() for t in row['tags'].split(",") if t.strip()] if row.get('tags') else []
-                tx = Transaction(
-                    id=row.get('id') or str(uuid.uuid4())[:8],
-                    type=row['type'],
-                    date=row['date'],
-                    amount=int(row['amount']),
-                    category=row['category'],
-                    memo=row.get('memo', ''),
-                    tags=tags
-                )
+                # 1. CSV 헤더 구조 검증
+                if not reader.fieldnames:
+                    print("❌ [포맷 오류] CSV 파일이 비어있거나 올바른 형식이 아닙니다.")
+                    return
+                
+                missing_headers = required_headers - set(reader.fieldnames)
+                if missing_headers:
+                    print(f"❌ [포맷 오류] 필수 헤더가 누락되었습니다. (누락: {', '.join(missing_headers)})")
+                    return
+
+                # 2. 행 데이터 루프 및 검증 (오류 발생 시 즉시 중단 및 롤백)
+                for line_num, row in enumerate(reader, start=2):
+                    # 필수 데이터 빈 값 체크
+                    for field_name in required_headers:
+                        if not row.get(field_name) or not str(row[field_name]).strip():
+                            raise ValueError(f"{line_num}번째 줄: 필수 데이터('{field_name}')가 비어있습니다.")
+
+                    # 타입 유효성 검증
+                    row_type = row['type'].strip()
+                    if row_type not in ['income', 'expense']:
+                        raise ValueError(f"{line_num}번째 줄: 유효하지 않은 타입입니다. ('{row_type}' -> income/expense만 가능)")
+
+                    # 금액 숫자 변환 검증
+                    try:
+                        amount_val = int(row['amount'])
+                    except ValueError:
+                        raise ValueError(f"{line_num}번째 줄: 금액 형식이 올바르지 않습니다. ('{row['amount']}')")
+
+                    # 임시 카테고리 업데이트 처리
+                    category_val = row['category'].strip()
+                    if category_val not in temp_categories:
+                        temp_categories.append(category_val)
+                    
+                    # 태그 파싱
+                    tags_str = row.get('tags', '')
+                    tags_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+
+                    # Transaction.from_dict() 데이터 정제
+                    cleaned_data = {
+                        'id': row.get('id').strip() if row.get('id') else str(uuid.uuid4())[:8],
+                        'type': row_type,
+                        'date': row['date'].strip(),
+                        'amount': amount_val,
+                        'category': category_val,
+                        'memo': row.get('memo', '').strip(),
+                        'tags': tags_list
+                    }
+
+                    # 객체를 생성하여 임시 리스트에만 추가 (아직 repo에 저장 안 함)
+                    tx = Transaction.from_dict(cleaned_data)
+                    temp_transactions.append(tx)
+
+            # 3. 모든 데이터가 완벽할 때만 최종 반영 (All or Nothing)
+            for tx in temp_transactions:
                 self.repo.add_transaction(tx)
-                count += 1
-        
-        self.repo.save_categories(categories)
-        print(f"📥 가져오기 완료: 총 {count}건의 거래가 반영되었습니다.")
+                
+            self.repo.save_categories(temp_categories)
+            
+            print(f"📥 가져오기 완료: 총 {len(temp_transactions)}건의 거래가 안전하게 반영되었습니다.")
+
+        except ValueError as val_err:
+            # 데이터 검증 에러 발생 시 커밋하지 않고 중단 (자동 롤백 효과)
+            print(f"❌ [가져오기 실패] 데이터 검증 오류로 인해 작업을 취소합니다 (롤백).")
+            print(f"   👉 사유: {val_err}")
+            
+        except UnicodeDecodeError:
+            print("❌ [인코딩 오류] 파일 인코딩 형식이 'utf-8'이 아닙니다. 작업을 취소합니다.")
+            
+        except Exception as e:
+            print(f"❌ [예기치 못한 오류] 작업 중 알 수 없는 에러가 발생하여 취소합니다: {e}")
+    
