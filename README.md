@@ -35,21 +35,21 @@ python3 -m budget_app list --limit 5
 ```
 거래 조건 검색
 ```bash
-python3 -m budget_app search --type expense --category food --q "마라탕"
+python3 -m budget_app search --type expense --category food
 ```
 월 요약 및 예산 연동
 ```bash
 # 예산 먼저 설정
-python3 -m budget_app budget set --month 2026-05 --amount 500000
+python3 -m budget_app budget set --month 2026-06 --amount 500000
 
 # 월 요약 출력 (예산 대비 사용량 자동 표기)
-python3 -m budget_app summary --month 2026-05 --top 5
+python3 -m budget_app summary --month 2026-06 --top 5
 ```
 카테고리 관리
 ```bash
 python3 -m budget_app category list
 python3 -m budget_app category add shopping
-python3 -m budget_app category remove food
+python3 -m budget_app category remove shopping
 ```
 수정 및 삭제
 ```bash
@@ -62,7 +62,7 @@ python3 -m budget_app delete --id a1b2c3d4
 ![alt text](image.png)
 ```bash
 # CSV 데이터 가져오기
-python3 -m budget_app import --from ./my_data.csv
+python3 -m budget_app import --from ./test_data.csv
 
 # 특정 월 데이터 CSV 파일로 백업 내보내기
 python3 -m budget_app export --out ./backup_05.csv --month 2026-05
